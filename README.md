@@ -44,43 +44,43 @@ A Python-based palm recognition system using FAISS (vector search), Mediapipe (h
     python main.py
 
 📁 Project Structure
-  Palm Recog/
-    │ main.py
-    │ recognition.py
-    │ requirements.txt
-    │ README.md
-    │ models/
-     │  data/
+Palm Recog/
+  │ main.py
+  │ recognition.py
+  │ requirements.txt
+  │ README.md
+  │ models/
+   │  data/
     └─ gui_assets/
 
 ❗ Important Notes
 
-    Do not install NumPy 2.x, it breaks FAISS on Windows.
+  Do not install NumPy 2.x, it breaks FAISS on Windows.
     
-    OpenCV 4.9.0.80 is required (latest version forces NumPy 2).
+  OpenCV 4.9.0.80 is required (latest version forces NumPy 2).
     
-    Mediapipe 0.10.8 avoids JAX dependency.
+  Mediapipe 0.10.8 avoids JAX dependency.
     
-    FAISS must be installed via Conda on Windows (pip wheels are discontinued).
+  FAISS must be installed via Conda on Windows (pip wheels are discontinued).
 
 🧩 Troubleshooting
 
   FAISS import error?
     → Ensure NumPy is exactly:
   
-    pip install numpy==1.26.4
+  pip install numpy==1.26.4
   
   
   Mediapipe asks for JAX?
     → Use:
   
-      pip install mediapipe==0.10.8
+  pip install mediapipe==0.10.8
   
   
   OpenCV crashes?
     → Use:
   
-      pip install opencv-python==4.9.0.80
+  pip install opencv-python==4.9.0.80
 
 Requirements
 
