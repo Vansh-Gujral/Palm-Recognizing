@@ -3,7 +3,9 @@
 # from PIL import Image, ImageTk
 # import cv2
 # import time
+# import numpy as np
 
+# # Import our modules
 # from database import DatabaseManager
 # from hand_tracker import HandTracker
 # from recognition import PalmRecognizer
@@ -11,124 +13,153 @@
 # class PalmPayApp:
 #     def __init__(self, root):
 #         self.root = root
-#         self.root.title("Palm Pay - Biometric Payment System")
+#         self.root.title("Palm Pay - Exam Version")
 #         self.root.geometry("1100x700")
-#         self.root.configure(bg="#1e1e1e") 
+#         self.root.configure(bg="#1e1e1e")
 
 #         self.db = DatabaseManager()
 #         self.tracker = HandTracker()
 #         self.recognizer = PalmRecognizer()
         
-#         self.cap = cv2.VideoCapture(0) 
+#         self.cap = cv2.VideoCapture(0)
 #         self.is_running = True
 #         self.mode = "IDLE" 
-#         self.scanned_embedding = None
+        
+#         # Registration Variables
+#         self.reg_samples = []
+#         self.REQUIRED_SAMPLES = 5 # Takes 5 pics to ensure quality
+        
 #         self.last_scan_time = 0
 
 #         self.setup_ui()
-        
 #         self.update_frame()
 
 #     def setup_ui(self):
-#         self.lbl_title = tk.Label(self.root, text="Palm Pay System", font=("Arial", 24, "bold"), bg="#1e1e1e", fg="#00ffcc")
-#         self.lbl_title.pack(pady=20)
-#         self.lbl_video = tk.Label(self.root, bg="black", borderwidth=2, relief="solid")
-#         self.lbl_video.pack()
-#         self.lbl_status = tk.Label(self.root, text="Ready. Select a mode below.", font=("Arial", 14), bg="#1e1e1e", fg="white")
+#         # Header
+#         tk.Label(self.root, text="Palm Pay System", font=("Arial", 24, "bold"), bg="#1e1e1e", fg="white").pack(pady=20)
+
+#         # Video
+#         self.lbl_video = tk.Label(self.root, bg="black")
+#         self.lbl_video.pack(pady=10)
+
+#         # Status
+#         self.lbl_status = tk.Label(self.root, text="System Ready", font=("Arial", 14), bg="#1e1e1e", fg="#00ff00")
 #         self.lbl_status.pack(pady=10)
+
+#         # Buttons
 #         btn_frame = tk.Frame(self.root, bg="#1e1e1e")
 #         btn_frame.pack(pady=20)
-#         btn_reg = tk.Button(btn_frame, text="Register New Hand", font=("Arial", 14), bg="#007bff", fg="white", 
-#                             width=20, command=self.start_registration)
-#         btn_reg.grid(row=0, column=0, padx=20)
-#         btn_pay = tk.Button(btn_frame, text="Scan to Pay", font=("Arial", 14), bg="#28a745", fg="white", 
-#                             width=20, command=self.start_payment)
-#         btn_pay.grid(row=0, column=1, padx=20)
+
+#         tk.Button(btn_frame, text="Register User", bg="#007bff", fg="white", font=("Arial", 12),
+#                   width=20, command=self.start_registration).grid(row=0, column=0, padx=20)
+
+#         tk.Button(btn_frame, text="Scan to Pay", bg="#28a745", fg="white", font=("Arial", 12),
+#                   width=20, command=self.start_payment).grid(row=0, column=1, padx=20)
+        
+#         # Small debug window to show the rotation in action
+#         self.lbl_debug = tk.Label(self.root, text="AI View", bg="black", fg="white")
+#         self.lbl_debug.place(x=900, y=50)
 
 #     def start_registration(self):
 #         self.mode = "REGISTER"
-#         self.lbl_status.config(text="Mode: REGISTER. Place hand in the box.")
-#         self.scanned_embedding = None
+#         self.reg_samples = []
+#         self.lbl_status.config(text="Keep hand steady... Capturing 0/5", fg="cyan")
 
 #     def start_payment(self):
 #         self.mode = "PAY"
-#         self.lbl_status.config(text="Mode: PAYMENT. Place hand in the box.")
-#         self.scanned_embedding = None
+#         self.lbl_status.config(text="Scan your hand to pay...", fg="yellow")
 
-#     def handle_auto_capture(self, roi, frame_display):
-#         """
-#         Called when hand is perfectly aligned.
-#         """
+#     def handle_registration(self, roi):
 #         current_time = time.time()
-#         if current_time - self.last_scan_time < 2:
-#             return
-
-#         cv2.rectangle(frame_display, (0, 0), (frame_display.shape[1], frame_display.shape[0]), (0, 255, 0), 20)
-#         embedding = self.recognizer.get_embedding(roi)
-#         self.last_scan_time = current_time
-
-#         if self.mode == "REGISTER":
-#             self.register_logic(embedding)
-#         elif self.mode == "PAY":
-#             self.payment_logic(embedding)
-#         self.mode = "IDLE"
-#         self.lbl_status.config(text="Scan Complete. Select mode to continue.")
-
-#     def register_logic(self, embedding):
-#         name = simpledialog.askstring("Input", "Enter User Name:")
-#         if not name: return
+#         # Take a sample every 0.3 seconds
+#         if current_time - self.last_scan_time < 0.3: return
         
-#         upi = simpledialog.askstring("Input", "Enter UPI ID (e.g., name@okicici):")
-#         if not upi: return
-#         self.db.add_user(name, upi, embedding)
-#         messagebox.showinfo("Success", f"User {name} linked to {upi} successfully!")
+#         self.last_scan_time = current_time
+        
+#         # 1. Get embedding
+#         embedding = self.recognizer.get_embedding(roi)
+#         self.reg_samples.append(embedding)
+        
+#         count = len(self.reg_samples)
+#         self.lbl_status.config(text=f"Capturing... {count}/{self.REQUIRED_SAMPLES}", fg="cyan")
+        
+#         # 2. If we have 5 samples, finish
+#         if count >= self.REQUIRED_SAMPLES:
+#             # Average the embeddings for high accuracy
+#             avg_embedding = np.mean(self.reg_samples, axis=0)
+#             # Normalize again
+#             avg_embedding = avg_embedding / np.linalg.norm(avg_embedding)
+            
+#             self.mode = "IDLE"
+#             self.save_user(avg_embedding)
 
-#     def payment_logic(self, embedding):
-#         users = self.db.get_all_users()
-#         if not users:
-#             messagebox.showwarning("Error", "No users in database!")
-#             return
-#         match = self.recognizer.find_match(embedding, users)
-
-#         if match:
-#             msg = f"Hand Verified!\nUser: {match['name']}\nUPI: {match['upi_id']}\n\nProceeding to Payment..."
-#             messagebox.showinfo("Payment Successful", msg)
+#     def save_user(self, embedding):
+#         name = simpledialog.askstring("Register", "Enter Name:")
+#         if name:
+#             upi = simpledialog.askstring("Register", "Enter UPI ID:")
+#             self.db.add_user(name, upi, embedding)
+#             messagebox.showinfo("Success", "User Registered Successfully!")
+#             self.lbl_status.config(text="System Ready", fg="#00ff00")
 #         else:
-#             messagebox.showerror("Failed", "Hand not recognized. Please try again.")
+#             self.lbl_status.config(text="Registration Cancelled", fg="red")
+
+#     def handle_payment(self, roi):
+#         current_time = time.time()
+#         if current_time - self.last_scan_time < 2: return # 2 sec cooldown
+        
+#         self.last_scan_time = current_time
+#         self.lbl_status.config(text="Processing...", fg="yellow")
+#         self.root.update()
+
+#         embedding = self.recognizer.get_embedding(roi)
+#         match = self.recognizer.find_match(embedding, self.db.get_all_users())
+        
+#         if match:
+#             msg = f"User: {match['name']}\nUPI: {match['upi_id']}\nStatus: Verified"
+#             messagebox.showinfo("Payment Success", msg)
+#             self.mode = "IDLE"
+#             self.lbl_status.config(text="System Ready", fg="#00ff00")
+#         else:
+#             self.lbl_status.config(text="Hand Not Recognized", fg="red")
 
 #     def update_frame(self):
 #         if self.is_running:
 #             ret, frame = self.cap.read()
 #             if ret:
-#                 frame = cv2.flip(frame, 1) 
-                
-#                 # 1. Process Hand
+#                 frame = cv2.flip(frame, 1)
 #                 results = self.tracker.process_frame(frame)
                 
-#                 # 2. Draw Blueprint
-#                 box_coords = self.tracker.draw_blueprint(frame)
-#                 x1, y1, x2, y2 = box_coords
+#                 # Draw standard overlay
+#                 self.tracker.draw_blueprint(frame)
 
-#                 # 3. Check Alignment if hand detected
 #                 if results.multi_hand_landmarks:
 #                     for hand_landmarks in results.multi_hand_landmarks:
-#                         self.tracker.mp_draw.draw_landmarks(frame, hand_landmarks, self.tracker.mp_hands.HAND_CONNECTIONS)
+#                         self.tracker.draw_advanced_visuals(frame, hand_landmarks)
                         
-#                         if self.tracker.is_hand_aligned(hand_landmarks, frame.shape, box_coords):
-#                             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-#                             cv2.putText(frame, "ALIGNED - HOLD STILL", (x1, y2 + 30), 
-#                                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                            
-#                             if self.mode in ["REGISTER", "PAY"]:
-#                                 roi = self.tracker.extract_roi(frame, box_coords)
-#                                 self.handle_auto_capture(roi, frame)
-#                         else:
-#                             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+#                         # --- THE CORE UPGRADE ---
+#                         # Use the new Rotation-Correction Logic
+#                         roi = self.tracker.get_palm_warp(frame, hand_landmarks)
+                        
+#                         if roi is not None:
+#                             # Show the AI's view in the corner (Debug)
+#                             # You will see this stays upright even if you tilt your hand!
+#                             debug_img = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
+#                             debug_img = debug_img.resize((100, 100))
+#                             debug_tk = ImageTk.PhotoImage(image=debug_img)
+#                             self.lbl_debug.imgtk = debug_tk
+#                             self.lbl_debug.configure(image=debug_tk)
+
+#                             if self.tracker.is_hand_stable(hand_landmarks, frame.shape):
+#                                 if self.mode == "REGISTER":
+#                                     self.handle_registration(roi)
+#                                 elif self.mode == "PAY":
+#                                     self.handle_payment(roi)
 
 #                 img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 #                 imgtk = ImageTk.PhotoImage(image=img)
 #                 self.lbl_video.imgtk = imgtk
 #                 self.lbl_video.configure(image=imgtk)
+
 #         self.root.after(10, self.update_frame)
 
 #     def on_close(self):
@@ -142,11 +173,103 @@
 #     root.protocol("WM_DELETE_WINDOW", app.on_close)
 #     root.mainloop()
 
+# import sqlite3
+# import numpy as np
+# import os
+# from cryptography.fernet import Fernet
+
+# class DatabaseManager:
+#     def __init__(self, db_name="palm_pay_secure.db"):
+#         # 1. Industrial Security: Key Management
+#         self.key_file = "secret.key"
+#         self.key = self.load_or_create_key()
+#         self.cipher = Fernet(self.key)
+
+#         self.conn = sqlite3.connect(db_name, check_same_thread=False)
+#         self.create_tables()
+
+#     def load_or_create_key(self):
+#         """
+#         Loads the existing encryption key or creates a new one.
+#         CRITICAL: If you lose 'secret.key', the database becomes unreadable junk.
+#         """
+#         if os.path.exists(self.key_file):
+#             with open(self.key_file, "rb") as file:
+#                 return file.read()
+#         else:
+#             print("Generating new AES Encryption Key...")
+#             key = Fernet.generate_key()
+#             with open(self.key_file, "wb") as file:
+#                 file.write(key)
+#             return key
+
+#     def create_tables(self):
+#         cursor = self.conn.cursor()
+#         # Note: We store 'encrypted_embedding' instead of raw embedding
+#         cursor.execute("""
+#             CREATE TABLE IF NOT EXISTS users (
+#                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                 name TEXT NOT NULL,
+#                 upi_id TEXT NOT NULL,
+#                 balance REAL DEFAULT 500.0,
+#                 encrypted_embedding BLOB NOT NULL
+#             )
+#         """)
+#         self.conn.commit()
+
+#     def add_user(self, name, upi_id, embedding):
+#         cursor = self.conn.cursor()
+        
+#         # 1. Convert to Bytes
+#         binary_data = embedding.tobytes()
+        
+#         # 2. ENCRYPT the data (AES-256)
+#         # This turns your biometric data into random noise
+#         encrypted_data = self.cipher.encrypt(binary_data)
+        
+#         cursor.execute("INSERT INTO users (name, upi_id, encrypted_embedding) VALUES (?, ?, ?)",
+#                        (name, upi_id, encrypted_data))
+#         self.conn.commit()
+#         print(f"User {name} added with AES-256 Encryption.")
+
+#     def get_all_users(self):
+#         """
+#         Decrypts data on-the-fly when needed for the AI.
+#         """
+#         cursor = self.conn.cursor()
+#         cursor.execute("SELECT id, name, upi_id, encrypted_embedding FROM users")
+#         rows = cursor.fetchall()
+        
+#         users = []
+#         for row in rows:
+#             uid, name, upi, enc_blob = row
+            
+#             try:
+#                 # 3. DECRYPT data
+#                 # Only this program (with the key) can turn the noise back into a palm print
+#                 decrypted_blob = self.cipher.decrypt(enc_blob)
+#                 embedding = np.frombuffer(decrypted_blob, dtype=np.float32)
+                
+#                 users.append({
+#                     "id": uid,
+#                     "name": name,
+#                     "upi_id": upi,
+#                     "embedding": embedding
+#                 })
+#             except Exception as e:
+#                 print(f"Security Alert: Could not decrypt user {uid}. Data may be tampered.")
+                
+#         return users
+
+#     def close(self):
+#         self.conn.close()
+
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from PIL import Image, ImageTk
 import cv2
 import time
+import numpy as np
 
 # Import our modules
 from database import DatabaseManager
@@ -156,140 +279,159 @@ from recognition import PalmRecognizer
 class PalmPayApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Palm Pay - Industrial Grade Biometrics")
-        self.root.geometry("1100x750")
-        self.root.configure(bg="#121212")
+        self.root.title("Palm Pay - Industrial Encrypted")
+        self.root.geometry("1100x700")
+        self.root.configure(bg="#1e1e1e")
 
-        # --- Initialize System Components ---
         self.db = DatabaseManager()
         self.tracker = HandTracker()
         self.recognizer = PalmRecognizer()
         
+        # --- INDUSTRIAL UPGRADE: Build Search Index ---
+        print("Initializing FAISS Search Engine...")
+        self.reload_faiss_index()
+        
         self.cap = cv2.VideoCapture(0)
         self.is_running = True
-        self.mode = "IDLE"
+        self.mode = "IDLE" 
+        
+        # Registration Variables (5-shot averaging)
+        self.reg_samples = []
+        self.REQUIRED_SAMPLES = 5 
+        
         self.last_scan_time = 0
 
         self.setup_ui()
         self.update_frame()
 
+    def reload_faiss_index(self):
+        """
+        Fetches all decrypted users and rebuilds the fast search index.
+        """
+        all_users = self.db.get_all_users()
+        self.recognizer.rebuild_index(all_users)
+
     def setup_ui(self):
         # Header
-        header_frame = tk.Frame(self.root, bg="#1e1e1e")
-        header_frame.pack(fill="x", pady=0)
-        
-        self.lbl_title = tk.Label(header_frame, text="PALM PAY SECURE", font=("Segoe UI", 20, "bold"), bg="#1e1e1e", fg="#00e5ff")
-        self.lbl_title.pack(pady=10)
+        tk.Label(self.root, text="Palm Pay | Secure Industrial", font=("Arial", 24, "bold"), bg="#1e1e1e", fg="white").pack(pady=20)
 
-        # Video Area
-        self.lbl_video = tk.Label(self.root, bg="black", borderwidth=2, relief="sunken")
+        # Video
+        self.lbl_video = tk.Label(self.root, bg="black")
         self.lbl_video.pack(pady=10)
 
-        # Status Bar
-        self.lbl_status = tk.Label(self.root, text="SYSTEM READY. SELECT OPTION.", font=("Consolas", 14), bg="#121212", fg="#00ff00")
+        # Status
+        self.lbl_status = tk.Label(self.root, text="System Ready (AES-256 Active)", font=("Arial", 14), bg="#1e1e1e", fg="#00ff00")
         self.lbl_status.pack(pady=10)
 
-        # Controls
-        btn_frame = tk.Frame(self.root, bg="#121212")
+        # Buttons
+        btn_frame = tk.Frame(self.root, bg="#1e1e1e")
         btn_frame.pack(pady=20)
 
-        # Register Button
-        btn_reg = tk.Button(btn_frame, text="[ REGISTER HAND ]", font=("Consolas", 12, "bold"), bg="#0069d9", fg="white", 
-                            width=20, height=2, borderwidth=0, command=self.start_registration)
-        btn_reg.grid(row=0, column=0, padx=20)
+        tk.Button(btn_frame, text="Register User", bg="#007bff", fg="white", font=("Arial", 12),
+                  width=20, command=self.start_registration).grid(row=0, column=0, padx=20)
 
-        # Pay Button
-        btn_pay = tk.Button(btn_frame, text="[ SCAN TO PAY ]", font=("Consolas", 12, "bold"), bg="#218838", fg="white", 
-                            width=20, height=2, borderwidth=0, command=self.start_payment)
-        btn_pay.grid(row=0, column=1, padx=20)
+        tk.Button(btn_frame, text="Scan to Pay", bg="#28a745", fg="white", font=("Arial", 12),
+                  width=20, command=self.start_payment).grid(row=0, column=1, padx=20)
+        
+        # Debug window
+        self.lbl_debug = tk.Label(self.root, text="AI View", bg="black", fg="white")
+        self.lbl_debug.place(x=900, y=50)
 
     def start_registration(self):
         self.mode = "REGISTER"
-        self.lbl_status.config(text="MODE: REGISTRATION - ALIGN HAND IN BLUEPRINT", fg="#00bfff")
+        self.reg_samples = []
+        self.lbl_status.config(text="Keep hand steady... Capturing 0/5", fg="cyan")
 
     def start_payment(self):
         self.mode = "PAY"
-        self.lbl_status.config(text="MODE: PAYMENT - ALIGN HAND TO SCAN", fg="#76ff03")
+        self.lbl_status.config(text="Scan your hand to pay...", fg="yellow")
 
-    def handle_auto_capture(self, roi, frame_display):
+    def handle_registration(self, roi):
         current_time = time.time()
-        if current_time - self.last_scan_time < 3: # 3 second cooldown
-            return
-
-        # Flash Effect
-        cv2.rectangle(frame_display, (0, 0), (frame_display.shape[1], frame_display.shape[0]), (255, 255, 255), 30)
-        self.root.update()
+        if current_time - self.last_scan_time < 0.3: return
         
-        self.lbl_status.config(text="PROCESSING BIOMETRICS...", fg="yellow")
+        self.last_scan_time = current_time
+        
+        # 1. Get embedding
+        embedding = self.recognizer.get_embedding(roi)
+        self.reg_samples.append(embedding)
+        
+        count = len(self.reg_samples)
+        self.lbl_status.config(text=f"Capturing... {count}/{self.REQUIRED_SAMPLES}", fg="cyan")
+        
+        # 2. If we have 5 samples, finish
+        if count >= self.REQUIRED_SAMPLES:
+            # Average the embeddings for high accuracy
+            avg_embedding = np.mean(self.reg_samples, axis=0)
+            avg_embedding = avg_embedding / np.linalg.norm(avg_embedding)
+            
+            self.mode = "IDLE"
+            self.save_user(avg_embedding)
+
+    def save_user(self, embedding):
+        name = simpledialog.askstring("Register", "Enter Name:")
+        if name:
+            upi = simpledialog.askstring("Register", "Enter UPI ID:")
+            # Save to Secure DB
+            self.db.add_user(name, upi, embedding)
+            # Update Fast Search Index
+            self.reload_faiss_index()
+            
+            messagebox.showinfo("Success", "User Registered Encrypted & Indexed!")
+            self.lbl_status.config(text="System Ready", fg="#00ff00")
+        else:
+            self.lbl_status.config(text="Registration Cancelled", fg="red")
+
+    def handle_payment(self, roi):
+        current_time = time.time()
+        if current_time - self.last_scan_time < 2: return 
+        
+        self.last_scan_time = current_time
+        self.lbl_status.config(text="Searching Secure Index...", fg="yellow")
         self.root.update()
 
-        # Get Embedding
+        # 1. Get Vector
         embedding = self.recognizer.get_embedding(roi)
-        self.last_scan_time = current_time
-
-        if self.mode == "REGISTER":
-            self.register_logic(embedding)
-        elif self.mode == "PAY":
-            self.payment_logic(embedding)
-            
-        self.mode = "IDLE"
-        self.lbl_status.config(text="TRANSACTION COMPLETE. SYSTEM IDLE.", fg="white")
-
-    def register_logic(self, embedding):
-        name = simpledialog.askstring("Registration", "Enter User Name:")
-        if not name: return
-        upi = simpledialog.askstring("Registration", "Enter UPI ID:")
-        if not upi: return
-
-        self.db.add_user(name, upi, embedding)
-        messagebox.showinfo("Success", f"Identity Registered: {name}")
-
-    def payment_logic(self, embedding):
-        users = self.db.get_all_users()
-        if not users:
-            messagebox.showwarning("Database Empty", "No users registered yet.")
-            return
-
-        # MATCHING LOGIC
-        match = self.recognizer.find_match(embedding, users)
-
+        
+        # 2. FAISS SEARCH (Instant Match)
+        match = self.recognizer.find_match_faiss(embedding)
+        
         if match:
-            # SUCCESS
-            msg = f"IDENTITY VERIFIED\n\nUser: {match['name']}\nLinked UPI: {match['upi_id']}"
-            messagebox.showinfo("Payment Approved", msg)
+            msg = f"User: {match['name']}\nUPI: {match['upi_id']}\nStatus: Authenticated"
+            messagebox.showinfo("Payment Success", msg)
+            self.mode = "IDLE"
+            self.lbl_status.config(text="System Ready", fg="#00ff00")
         else:
-            # FAILED - UNKNOWN USER
-            response = messagebox.askyesno("Access Denied", "UNKNOWN HAND DETECTED.\n\nWould you like to register this hand now?")
-            if response:
-                self.register_logic(embedding)
+            self.lbl_status.config(text="Hand Not Recognized", fg="red")
 
     def update_frame(self):
         if self.is_running:
             ret, frame = self.cap.read()
             if ret:
                 frame = cv2.flip(frame, 1)
-                
-                # 1. Process Hand
                 results = self.tracker.process_frame(frame)
-                box_coords = self.tracker.draw_blueprint(frame)
-                x1, y1, x2, y2 = box_coords
+                
+                self.tracker.draw_blueprint(frame)
 
                 if results.multi_hand_landmarks:
                     for hand_landmarks in results.multi_hand_landmarks:
-                        # 2. Draw Advanced Visuals (Outline + Bones)
                         self.tracker.draw_advanced_visuals(frame, hand_landmarks)
                         
-                        # 3. Check Alignment
-                        if self.tracker.is_hand_aligned(hand_landmarks, frame.shape, box_coords):
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.putText(frame, "LOCKED - SCANNING", (x1, y2 + 25), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                            
-                            if self.mode in ["REGISTER", "PAY"]:
-                                roi = self.tracker.extract_roi(frame, box_coords)
-                                self.handle_auto_capture(roi, frame)
-                        else:
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 165, 255), 2) # Orange for misalignment
+                        roi = self.tracker.get_palm_warp(frame, hand_landmarks)
+                        
+                        if roi is not None:
+                            # Debug View
+                            debug_img = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
+                            debug_img = debug_img.resize((100, 100))
+                            debug_tk = ImageTk.PhotoImage(image=debug_img)
+                            self.lbl_debug.imgtk = debug_tk
+                            self.lbl_debug.configure(image=debug_tk)
+
+                            if self.tracker.is_hand_stable(hand_landmarks, frame.shape):
+                                if self.mode == "REGISTER":
+                                    self.handle_registration(roi)
+                                elif self.mode == "PAY":
+                                    self.handle_payment(roi)
 
                 img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 imgtk = ImageTk.PhotoImage(image=img)

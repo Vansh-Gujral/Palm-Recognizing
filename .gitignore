@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+*.env
+*.key
+secret.key
+
+# Database files (do not push local DB)
+*.db
+
+# System files
+.DS_Store
+
+# Test files
+test.py
